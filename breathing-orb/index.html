@@ -1,0 +1,933 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light dark" />
+<title>Breathing Orb</title>
+<script>
+(() => {
+  const requested = new URLSearchParams(location.search).get('theme');
+  const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const dark = requested === 'dark' ? true : requested === 'light' ? false : systemDark;
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+})();
+</script>
+<style>
+  :root {
+    /* Reserve a real fade zone around the orb so its glow never meets the iframe edge abruptly. */
+    --orb-size: min(calc(100vw - 76px), calc(100vh - 76px), 360px);
+    --page-bg: #ffffff;
+    --text: rgba(43, 46, 56, 0.88);
+    --muted: rgba(43, 46, 56, 0.54);
+    --faint: rgba(43, 46, 56, 0.36);
+    --focus: rgba(78, 87, 116, 0.34);
+    --copy-shadow: 0 1px 14px rgba(255, 255, 255, 0.10);
+    --orb-a: rgba(145, 179, 255, 0.86);
+    --orb-b: rgba(198, 166, 255, 0.78);
+    --orb-c: rgba(121, 224, 229, 0.68);
+    --orb-d: rgba(255, 184, 218, 0.48);
+    --glow: rgba(132, 164, 255, 0.23);
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --sans: "Avenir Next", Avenir, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  :root[data-theme="dark"] {
+    --page-bg: #191919;
+    /* The orb stays luminous in night mode, so dark ink is more legible than white. */
+    --text: rgba(29, 33, 48, 0.94);
+    --muted: rgba(35, 40, 58, 0.72);
+    --faint: rgba(40, 46, 66, 0.52);
+    --focus: rgba(40, 46, 66, 0.38);
+    --copy-shadow: 0 1px 1px rgba(255, 255, 255, 0.34), 0 0 12px rgba(255, 255, 255, 0.12);
+    --orb-a: rgba(150, 185, 255, 0.90);
+    --orb-b: rgba(203, 174, 255, 0.82);
+    --orb-c: rgba(131, 230, 234, 0.72);
+    --orb-d: rgba(255, 183, 219, 0.52);
+    --glow: rgba(151, 179, 255, 0.29);
+  }
+
+  * { box-sizing: border-box; }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    background-color: var(--page-bg) !important;
+    background-image: none !important;
+  }
+
+  html {
+    color-scheme: light dark;
+    transition: background-color 420ms ease;
+  }
+
+  body {
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  .breather {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    background: transparent !important;
+    box-shadow: none !important;
+    user-select: none;
+  }
+
+  .orb-shell {
+    width: var(--orb-size);
+    height: var(--orb-size);
+    position: relative;
+    display: grid;
+    place-items: center;
+  }
+
+  .orb-main {
+    appearance: none;
+    border: 0;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: transparent;
+    cursor: pointer;
+    position: relative;
+    display: grid;
+    place-items: center;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .orb-main::before {
+    content: "";
+    position: absolute;
+    inset: -26px;
+    border-radius: 50%;
+    pointer-events: none;
+    background: radial-gradient(
+      circle,
+      var(--glow) 0%,
+      color-mix(in srgb, var(--glow) 58%, transparent) 35%,
+      transparent 72%
+    );
+    filter: blur(8px);
+    opacity: 0.72;
+  }
+
+  @supports not (background: color-mix(in srgb, white, transparent)) {
+    .orb-main::before {
+      background: radial-gradient(circle, var(--glow) 0%, rgba(132, 164, 255, 0.10) 42%, transparent 72%);
+    }
+  }
+
+  .orb-main:focus-visible::after {
+    content: "";
+    position: absolute;
+    inset: -8px;
+    border-radius: 50%;
+    border: 1px solid var(--focus);
+  }
+
+  .orb {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    overflow: hidden;
+    transform: translateY(1px) scale(0.81);
+    transform-origin: center;
+    will-change: transform, filter, background-position;
+    background:
+      radial-gradient(circle at 29% 23%, rgba(255,255,255,0.88) 0%, rgba(255,255,255,0.30) 17%, transparent 38%),
+      radial-gradient(circle at 72% 72%, var(--orb-c) 0%, transparent 46%),
+      radial-gradient(circle at 73% 24%, var(--orb-d) 0%, transparent 43%),
+      linear-gradient(145deg, var(--orb-a), var(--orb-b));
+    background-size: 170% 170%, 155% 155%, 155% 155%, 170% 170%;
+    background-position: 24% 18%, 74% 74%, 70% 28%, 42% 48%;
+    box-shadow:
+      0 14px 38px color-mix(in srgb, var(--glow) 72%, transparent),
+      inset -18px -20px 36px rgba(86, 96, 176, 0.14),
+      inset 14px 14px 30px rgba(255, 255, 255, 0.25);
+  }
+
+
+  @supports not (color: color-mix(in srgb, white, black)) {
+    .orb {
+      box-shadow:
+        0 14px 38px var(--glow),
+        inset -18px -20px 36px rgba(86, 96, 176, 0.14),
+        inset 14px 14px 30px rgba(255, 255, 255, 0.25);
+    }
+  }
+
+  .orb::before,
+  .orb::after {
+    content: "";
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+  }
+
+  .orb::before {
+    width: 74%;
+    height: 74%;
+    left: -12%;
+    top: -8%;
+    background: radial-gradient(circle, rgba(255,255,255,0.31), transparent 67%);
+    filter: blur(7px);
+  }
+
+  .orb::after {
+    width: 68%;
+    height: 68%;
+    right: -16%;
+    bottom: -16%;
+    background: radial-gradient(circle, rgba(105, 215, 231, 0.23), transparent 70%);
+    filter: blur(10px);
+  }
+
+  .orb {
+    animation: ambient-color-drift 28s ease-in-out infinite alternate;
+  }
+
+  @keyframes ambient-color-drift {
+    0% {
+      background-position: 18% 18%, 78% 78%, 72% 27%, 30% 45%;
+      filter: hue-rotate(-14deg) saturate(0.96) brightness(1.00);
+    }
+    30% {
+      background-position: 35% 22%, 62% 70%, 81% 40%, 63% 54%;
+      filter: hue-rotate(4deg) saturate(1.03) brightness(1.02);
+    }
+    65% {
+      background-position: 27% 35%, 69% 57%, 56% 20%, 53% 68%;
+      filter: hue-rotate(25deg) saturate(1.05) brightness(1.01);
+    }
+    100% {
+      background-position: 42% 20%, 56% 79%, 76% 36%, 72% 38%;
+      filter: hue-rotate(40deg) saturate(1.07) brightness(1.03);
+    }
+  }
+
+
+  .center-copy {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    padding: 0 9%;
+    text-align: center;
+    color: var(--text);
+    pointer-events: none;
+    text-shadow: var(--copy-shadow);
+    transform: translate3d(0, 1px, 0);
+    transform-origin: center;
+    will-change: transform;
+  }
+
+  .idle-ui {
+    opacity: 0;
+    transition: opacity 520ms cubic-bezier(.22,.61,.36,1);
+    pointer-events: none;
+  }
+
+  .orb-shell:hover .idle-ui,
+  .orb-shell:focus-within .idle-ui {
+    opacity: 1;
+  }
+
+  .mode-name {
+    display: block;
+    font-family: var(--serif);
+    font-size: clamp(20px, 5.4vw, 24px);
+    line-height: 1.02;
+    font-weight: 400;
+    font-style: italic;
+    letter-spacing: -0.018em;
+  }
+
+  .mode-pattern {
+    display: block;
+    width: max-content;
+    max-width: none;
+    margin: 8px auto 0;
+    color: var(--muted);
+    font-family: var(--sans);
+    font-size: 10px;
+    line-height: 1;
+    font-weight: 500;
+    letter-spacing: 0.025em;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap !important;
+    overflow-wrap: normal !important;
+    word-break: keep-all !important;
+  }
+
+  .phase-name {
+    display: block;
+    color: var(--muted);
+    font-family: var(--serif);
+    font-size: clamp(17px, 4.7vw, 21px);
+    line-height: 1;
+    font-weight: 400;
+    font-style: italic;
+    letter-spacing: -0.01em;
+  }
+
+  .phase-seconds {
+    display: block;
+    margin-top: 7px;
+    font-family: var(--sans);
+    font-size: clamp(42px, 14vw, 58px);
+    line-height: 0.9;
+    font-weight: 300;
+    letter-spacing: -0.055em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .paused-name {
+    display: block;
+    font-family: var(--serif);
+    font-size: clamp(20px, 5.4vw, 24px);
+    line-height: 1.02;
+    font-weight: 400;
+    font-style: italic;
+    letter-spacing: -0.018em;
+  }
+
+  .paused-hint {
+    display: block;
+    margin-top: 8px;
+    color: var(--muted);
+    font-family: var(--sans);
+    font-size: clamp(9px, 2.9vw, 11px);
+    line-height: 1;
+    font-weight: 500;
+    letter-spacing: 0.055em;
+  }
+
+  .mode-arrow,
+  .cancel-button {
+    appearance: none;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    color: var(--faint);
+    position: absolute;
+    z-index: 4;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mode-arrow {
+    width: 40px;
+    height: 40px;
+    top: 50%;
+    transform: translateY(-50%);
+    opacity: 0;
+    transition: opacity 520ms cubic-bezier(.22,.61,.36,1), color 240ms ease, transform 240ms ease;
+    pointer-events: none;
+  }
+
+  .orb-shell:hover .mode-arrow:not([hidden]),
+  .orb-shell:focus-within .mode-arrow:not([hidden]) {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .mode-arrow.left { left: 7.5%; }
+  .mode-arrow.right { right: 7.5%; }
+
+  .mode-arrow svg {
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.35;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .cancel-button {
+    width: 34px;
+    height: 34px;
+    top: 7.5%;
+    right: 7.5%;
+    border-radius: 50%;
+    transition: color 240ms ease, opacity 300ms ease, transform 240ms ease;
+  }
+
+  .cancel-button svg {
+    width: 15px;
+    height: 15px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.45;
+    stroke-linecap: round;
+  }
+
+  .mode-arrow:focus-visible,
+  .cancel-button:focus-visible {
+    color: var(--text);
+    box-shadow: 0 0 0 2px var(--focus);
+    border-radius: 999px;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .mode-arrow:hover,
+    .cancel-button:hover { color: var(--text); }
+    .mode-arrow.left:hover { transform: translate(-2px, -50%); }
+    .mode-arrow.right:hover { transform: translate(2px, -50%); }
+    .cancel-button:hover { transform: scale(1.06); }
+  }
+
+  .mode-arrow[hidden],
+  .cancel-button[hidden] { display: none; }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  @media (hover: none), (pointer: coarse) {
+    .idle-ui { opacity: 0; }
+    .orb-shell.mode-visible .idle-ui { opacity: 1; }
+    .orb-shell.mode-visible .mode-arrow:not([hidden]) { opacity: 1; pointer-events: auto; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .orb {
+      animation: ambient-color-drift 32s linear infinite alternate;
+    }
+  }
+
+  @media (max-width: 150px), (max-height: 150px) {
+    :root {
+      --orb-size: min(70vw, 70vh);
+    }
+    .orb-main::before { inset: -14px; filter: blur(5px); }
+  }
+
+</style>
+</head>
+<body>
+<main class="breather" aria-label="Breathing orb">
+  <div class="orb-shell" id="orbShell">
+    <button class="orb-main" id="orbMain" type="button" aria-label="Start Coherent breathing">
+      <span class="orb idle" id="orb" aria-hidden="true"></span>
+      <span class="center-copy idle-ui" id="centerCopy" aria-hidden="true">
+        <span>
+          <span class="mode-name">Coherent</span>
+          <span class="mode-pattern">5 in · 5 out</span>
+        </span>
+      </span>
+    </button>
+
+    <button class="mode-arrow left" id="previousMode" type="button" aria-label="Previous breathing mode">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 12H7M11 8l-4 4 4 4" /></svg>
+    </button>
+    <button class="mode-arrow right" id="nextMode" type="button" aria-label="Next breathing mode">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 12h10M13 8l4 4-4 4" /></svg>
+    </button>
+    <button class="cancel-button" id="cancelBreathing" type="button" aria-label="End breathing session" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 7.5 16.5 16.5M16.5 7.5 7.5 16.5" /></svg>
+    </button>
+  </div>
+  <div class="sr-only" id="liveStatus" aria-live="polite"></div>
+</main>
+
+<script>
+(() => {
+  const MODES = [
+    {
+      name: 'Coherent',
+      pattern: '5 in · 5 out',
+      phases: [
+        { name: 'Inhale', seconds: 5, scale: 1.00, y: -10 },
+        { name: 'Exhale', seconds: 5, scale: 0.74, y: 8 }
+      ]
+    },
+    {
+      name: 'Box',
+      pattern: '4 in · 4 hold · 4 out · 4 hold',
+      phases: [
+        { name: 'Inhale', seconds: 4, scale: 1.00, y: -10 },
+        { name: 'Hold', seconds: 4, scale: 1.00, y: -10 },
+        { name: 'Exhale', seconds: 4, scale: 0.74, y: 8 },
+        { name: 'Hold', seconds: 4, scale: 0.74, y: 8 }
+      ]
+    },
+    {
+      name: '4–7–8',
+      pattern: '4 in · 7 hold · 8 out',
+      phases: [
+        { name: 'Inhale', seconds: 4, scale: 1.00, y: -10 },
+        { name: 'Hold', seconds: 7, scale: 1.00, y: -10 },
+        { name: 'Exhale', seconds: 8, scale: 0.74, y: 8 }
+      ]
+    },
+    {
+      name: 'Relax',
+      pattern: '4 in · 6 out',
+      phases: [
+        { name: 'Inhale', seconds: 4, scale: 1.00, y: -10 },
+        { name: 'Exhale', seconds: 6, scale: 0.74, y: 8 }
+      ]
+    }
+  ];
+
+  const orb = document.getElementById('orb');
+  const orbMain = document.getElementById('orbMain');
+  const orbShell = document.getElementById('orbShell');
+  const centerCopy = document.getElementById('centerCopy');
+  const previousMode = document.getElementById('previousMode');
+  const nextMode = document.getElementById('nextMode');
+  const cancelBreathing = document.getElementById('cancelBreathing');
+  const liveStatus = document.getElementById('liveStatus');
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const coarsePointer = window.matchMedia('(hover: none), (pointer: coarse)').matches;
+  const darkScheme = window.matchMedia('(prefers-color-scheme: dark)');
+  const themeOverride = new URLSearchParams(window.location.search).get('theme');
+
+  function syncPageTheme() {
+    const dark = themeOverride === 'dark'
+      ? true
+      : themeOverride === 'light'
+        ? false
+        : darkScheme.matches;
+
+    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+  }
+
+  // Keep the orb feeling at home on a page that stays open throughout the day.
+  const AMBIENT_PALETTES = {
+    light: [
+      { hour: 0,  a: [132, 151, 236, 0.86], b: [175, 151, 241, 0.78], c: [104, 191, 214, 0.66], d: [219, 166, 214, 0.46], glow: [116, 142, 233, 0.24] },
+      { hour: 5,  a: [171, 187, 248, 0.86], b: [220, 177, 232, 0.76], c: [139, 209, 218, 0.66], d: [255, 193, 181, 0.46], glow: [155, 168, 238, 0.22] },
+      { hour: 9,  a: [145, 188, 255, 0.86], b: [191, 173, 255, 0.78], c: [119, 224, 226, 0.68], d: [255, 194, 218, 0.45], glow: [130, 169, 255, 0.23] },
+      { hour: 15, a: [144, 177, 255, 0.86], b: [201, 166, 255, 0.78], c: [118, 218, 230, 0.68], d: [255, 183, 219, 0.48], glow: [132, 164, 255, 0.23] },
+      { hour: 19, a: [170, 164, 247, 0.86], b: [224, 164, 231, 0.78], c: [119, 202, 220, 0.66], d: [255, 174, 192, 0.50], glow: [159, 145, 235, 0.24] },
+      { hour: 24, a: [132, 151, 236, 0.86], b: [175, 151, 241, 0.78], c: [104, 191, 214, 0.66], d: [219, 166, 214, 0.46], glow: [116, 142, 233, 0.24] }
+    ],
+    dark: [
+      { hour: 0,  a: [134, 154, 243, 0.90], b: [180, 157, 246, 0.82], c: [107, 202, 222, 0.70], d: [227, 170, 219, 0.50], glow: [133, 153, 244, 0.29] },
+      { hour: 5,  a: [178, 195, 255, 0.90], b: [226, 183, 239, 0.82], c: [146, 221, 229, 0.71], d: [255, 198, 189, 0.52], glow: [169, 185, 249, 0.28] },
+      { hour: 9,  a: [151, 195, 255, 0.90], b: [199, 180, 255, 0.82], c: [129, 232, 234, 0.72], d: [255, 198, 221, 0.51], glow: [145, 181, 255, 0.29] },
+      { hour: 15, a: [150, 185, 255, 0.90], b: [203, 174, 255, 0.82], c: [131, 230, 234, 0.72], d: [255, 183, 219, 0.52], glow: [151, 179, 255, 0.29] },
+      { hour: 19, a: [178, 171, 252, 0.90], b: [231, 173, 239, 0.82], c: [130, 214, 228, 0.71], d: [255, 181, 201, 0.54], glow: [175, 158, 246, 0.30] },
+      { hour: 24, a: [134, 154, 243, 0.90], b: [180, 157, 246, 0.82], c: [107, 202, 222, 0.70], d: [227, 170, 219, 0.50], glow: [133, 153, 244, 0.29] }
+    ]
+  };
+
+  function lerp(a, b, t) { return a + (b - a) * t; }
+
+  function rgba(value) {
+    const [r, g, b, a] = value;
+    return `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, ${a.toFixed(3)})`;
+  }
+
+  function mixColor(from, to, t) {
+    return from.map((value, i) => lerp(value, to[i], t));
+  }
+
+  function applyAmbientPalette() {
+    const now = new Date();
+    const hour = now.getHours() + now.getMinutes() / 60;
+    const palette = document.documentElement.dataset.theme === 'dark'
+      ? AMBIENT_PALETTES.dark
+      : AMBIENT_PALETTES.light;
+    let left = palette[0];
+    let right = palette[palette.length - 1];
+
+    for (let i = 0; i < palette.length - 1; i += 1) {
+      if (hour >= palette[i].hour && hour <= palette[i + 1].hour) {
+        left = palette[i];
+        right = palette[i + 1];
+        break;
+      }
+    }
+
+    const span = Math.max(0.001, right.hour - left.hour);
+    const t = smoothstep((hour - left.hour) / span);
+    const root = document.documentElement;
+    root.style.setProperty('--orb-a', rgba(mixColor(left.a, right.a, t)));
+    root.style.setProperty('--orb-b', rgba(mixColor(left.b, right.b, t)));
+    root.style.setProperty('--orb-c', rgba(mixColor(left.c, right.c, t)));
+    root.style.setProperty('--orb-d', rgba(mixColor(left.d, right.d, t)));
+    root.style.setProperty('--glow', rgba(mixColor(left.glow, right.glow, t)));
+  }
+
+  let modeIndex = 0;
+  let phaseIndex = 0;
+  let state = 'idle';
+  let rafId = 0;
+  let phaseStartedAt = 0;
+  let pausedElapsedMs = 0;
+  let phaseStartPose = { scale: 0.81, y: 1 };
+  let phaseEndPose = { scale: 1, y: -10 };
+  let currentPose = { scale: 0.81, y: 1 };
+  let idleStartedAt = performance.now();
+  let lastDisplayedSecond = null;
+  let touchPrimed = false;
+
+  function currentMode() { return MODES[modeIndex]; }
+  function currentPhase() { return currentMode().phases[phaseIndex]; }
+
+  function fitPatternLine() {
+    const pattern = centerCopy.querySelector('.mode-pattern');
+    if (!pattern || state !== 'idle') return;
+
+    // Use the orb itself, not the iframe, as the sizing reference.
+    const orbWidth = orbShell.getBoundingClientRect().width;
+    const reservedForArrows = 82;
+    const available = Math.max(120, orbWidth - reservedForArrows);
+
+    let size = Math.min(10.5, Math.max(8.2, orbWidth * 0.036));
+    pattern.style.fontSize = `${size}px`;
+    pattern.style.letterSpacing = '0.025em';
+
+    // Measure the actual rendered line and shrink only if required.
+    for (let i = 0; i < 10 && pattern.getBoundingClientRect().width > available; i += 1) {
+      size = Math.max(7.4, size - 0.35);
+      pattern.style.fontSize = `${size}px`;
+    }
+  }
+
+  function smoothstep(t) {
+    const x = Math.max(0, Math.min(1, t));
+    return x * x * (3 - 2 * x);
+  }
+
+  function setPose(pose) {
+    currentPose = { scale: pose.scale, y: pose.y };
+    if (reduceMotion) {
+      orb.style.transform = 'translate3d(0, 0, 0) scale(0.84)';
+      centerCopy.style.transform = 'translate3d(0, 0, 0)';
+      return;
+    }
+    orb.style.transform = `translate3d(0, ${pose.y.toFixed(3)}px, 0) scale(${pose.scale.toFixed(5)})`;
+    centerCopy.style.transform = `translate3d(0, ${pose.y.toFixed(3)}px, 0)`;
+  }
+
+  function readCurrentPose() {
+    return { ...currentPose };
+  }
+
+  function poseForPhaseTarget(phase) {
+    return { scale: phase.scale, y: phase.y };
+  }
+
+  function previousTargetPose(index) {
+    const phases = currentMode().phases;
+    const previousIndex = (index - 1 + phases.length) % phases.length;
+    return poseForPhaseTarget(phases[previousIndex]);
+  }
+
+  function setIdleUI() {
+    const mode = currentMode();
+    centerCopy.className = 'center-copy idle-ui';
+    centerCopy.innerHTML = `
+      <span>
+        <span class="mode-name">${mode.name}</span>
+        <span class="mode-pattern">${mode.pattern}</span>
+      </span>`;
+    requestAnimationFrame(fitPatternLine);
+  }
+
+  function renderPhaseUI(seconds) {
+    const phase = currentPhase();
+    centerCopy.className = 'center-copy';
+    centerCopy.innerHTML = `
+      <span>
+        <span class="phase-name">${phase.name}</span>
+        <span class="phase-seconds">${seconds}</span>
+      </span>`;
+  }
+
+  function stopFrameLoop() {
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = 0;
+  }
+
+  function idleFrame(now) {
+    if (state !== 'idle') return;
+    const cycleMs = 8800;
+    const t = ((now - idleStartedAt) % cycleMs) / cycleMs;
+    const wave = (1 - Math.cos(t * Math.PI * 2)) / 2;
+    setPose({
+      scale: 0.805 + (0.848 - 0.805) * wave,
+      y: 1 + (-3 - 1) * wave
+    });
+    rafId = requestAnimationFrame(idleFrame);
+  }
+
+  function startIdleLoop(offsetMs = 0) {
+    stopFrameLoop();
+    idleStartedAt = performance.now() - offsetMs;
+    rafId = requestAnimationFrame(idleFrame);
+  }
+
+  function renderIdle(announce = true, idleOffsetMs = 0) {
+    stopFrameLoop();
+    state = 'idle';
+    phaseIndex = 0;
+    pausedElapsedMs = 0;
+    lastDisplayedSecond = null;
+    touchPrimed = false;
+    orbShell.classList.remove('mode-visible');
+    orb.className = 'orb idle';
+    setIdleUI();
+    previousMode.hidden = false;
+    nextMode.hidden = false;
+    cancelBreathing.hidden = true;
+    orbMain.setAttribute('aria-label', `Start ${currentMode().name} breathing`);
+    startIdleLoop(idleOffsetMs);
+    if (announce) liveStatus.textContent = `${currentMode().name} breathing mode selected.`;
+  }
+
+  function changeMode(direction) {
+    modeIndex = (modeIndex + direction + MODES.length) % MODES.length;
+    setIdleUI();
+    orbMain.setAttribute('aria-label', `Start ${currentMode().name} breathing`);
+    liveStatus.textContent = `${currentMode().name} breathing mode selected.`;
+  }
+
+  function configurePhase(startPose = null) {
+    const phase = currentPhase();
+    phaseStartPose = startPose || previousTargetPose(phaseIndex);
+    phaseEndPose = poseForPhaseTarget(phase);
+    lastDisplayedSecond = null;
+    liveStatus.textContent = `${phase.name}, ${phase.seconds} seconds.`;
+  }
+
+  function advancePhase(boundaryTime) {
+    setPose(phaseEndPose);
+    phaseIndex = (phaseIndex + 1) % currentMode().phases.length;
+    configurePhase(previousTargetPose(phaseIndex));
+    phaseStartedAt = boundaryTime;
+  }
+
+  function frame(now) {
+    if (state !== 'running') return;
+
+    const phase = currentPhase();
+    const durationMs = phase.seconds * 1000;
+    let elapsedMs = now - phaseStartedAt;
+
+    // If the tab or browser stalls, advance cleanly across every elapsed phase
+    // instead of snapping or letting setTimeout and animation clocks disagree.
+    while (elapsedMs >= durationMs && state === 'running') {
+      const boundary = phaseStartedAt + durationMs;
+      advancePhase(boundary);
+      elapsedMs = now - phaseStartedAt;
+      if (elapsedMs < currentPhase().seconds * 1000) break;
+    }
+
+    const activePhase = currentPhase();
+    const activeDurationMs = activePhase.seconds * 1000;
+    const activeElapsedMs = Math.max(0, Math.min(activeDurationMs, now - phaseStartedAt));
+    const linearProgress = activeDurationMs > 0 ? activeElapsedMs / activeDurationMs : 1;
+
+    let progress = linearProgress;
+    if (activePhase.name !== 'Hold') progress = smoothstep(linearProgress);
+
+    const pose = activePhase.name === 'Hold'
+      ? phaseStartPose
+      : {
+          scale: phaseStartPose.scale + (phaseEndPose.scale - phaseStartPose.scale) * progress,
+          y: phaseStartPose.y + (phaseEndPose.y - phaseStartPose.y) * progress
+        };
+
+    setPose(pose);
+
+    const remainingMs = Math.max(0, activeDurationMs - activeElapsedMs);
+    const seconds = Math.max(1, Math.ceil(remainingMs / 1000));
+    if (seconds !== lastDisplayedSecond) {
+      lastDisplayedSecond = seconds;
+      renderPhaseUI(seconds);
+    }
+
+    rafId = requestAnimationFrame(frame);
+  }
+
+  function start() {
+    const idlePose = readCurrentPose();
+    state = 'running';
+    phaseIndex = 0;
+    pausedElapsedMs = 0;
+    touchPrimed = false;
+    orbShell.classList.remove('mode-visible');
+    previousMode.hidden = true;
+    nextMode.hidden = true;
+    cancelBreathing.hidden = false;
+    orbMain.setAttribute('aria-label', 'Pause breathing');
+
+    // Remove the idle transform animation only after capturing its exact visual pose.
+    orb.className = 'orb active';
+    setPose(idlePose);
+    configurePhase(idlePose);
+    phaseStartedAt = performance.now();
+    renderPhaseUI(currentPhase().seconds);
+    stopFrameLoop();
+    rafId = requestAnimationFrame(frame);
+  }
+
+  function pause() {
+    if (state !== 'running') return;
+
+    pausedElapsedMs = Math.max(0, performance.now() - phaseStartedAt);
+    state = 'paused';
+    stopFrameLoop();
+    orb.className = 'orb paused';
+
+    centerCopy.className = 'center-copy';
+    centerCopy.innerHTML = `
+      <span>
+        <span class="paused-name">Paused</span>
+        <span class="paused-hint">tap to continue</span>
+      </span>`;
+
+    orbMain.setAttribute('aria-label', 'Resume breathing');
+    liveStatus.textContent = 'Breathing paused. Tap the orb to resume or use the close button to end.';
+  }
+
+  function resume() {
+    if (state !== 'paused') return;
+    state = 'running';
+    orb.className = 'orb active';
+    orbMain.setAttribute('aria-label', 'Pause breathing');
+    phaseStartedAt = performance.now() - pausedElapsedMs;
+    stopFrameLoop();
+    rafId = requestAnimationFrame(frame);
+  }
+
+  function cancelSession() {
+    if (state === 'idle' || state === 'returning') return;
+    const name = currentMode().name;
+    const from = readCurrentPose();
+    const to = { scale: 0.8265, y: -1 };
+    const started = performance.now();
+    const duration = reduceMotion ? 0 : 700;
+
+    state = 'returning';
+    stopFrameLoop();
+    previousMode.hidden = true;
+    nextMode.hidden = true;
+    cancelBreathing.hidden = true;
+    centerCopy.className = 'center-copy idle-ui';
+    setIdleUI();
+    orbMain.setAttribute('aria-label', 'Returning to idle');
+
+    function returnFrame(now) {
+      if (state !== 'returning') return;
+      const linear = duration === 0 ? 1 : Math.min(1, (now - started) / duration);
+      const eased = smoothstep(linear);
+      setPose({
+        scale: from.scale + (to.scale - from.scale) * eased,
+        y: from.y + (to.y - from.y) * eased
+      });
+
+      if (linear < 1) {
+        rafId = requestAnimationFrame(returnFrame);
+      } else {
+        renderIdle(false, 2200);
+        liveStatus.textContent = `${name} breathing session ended.`;
+      }
+    }
+
+    rafId = requestAnimationFrame(returnFrame);
+  }
+
+  orbMain.addEventListener('click', () => {
+    if (state === 'idle') {
+      if (coarsePointer && !touchPrimed) {
+        touchPrimed = true;
+        orbShell.classList.add('mode-visible');
+        liveStatus.textContent = `${currentMode().name} breathing mode. Tap again to start.`;
+        return;
+      }
+      start();
+    } else if (state === 'running') {
+      pause();
+    } else if (state === 'paused') {
+      resume();
+    }
+  });
+
+  previousMode.addEventListener('click', (event) => {
+    event.stopPropagation();
+    changeMode(-1);
+  });
+
+  nextMode.addEventListener('click', (event) => {
+    event.stopPropagation();
+    changeMode(1);
+  });
+
+  cancelBreathing.addEventListener('click', (event) => {
+    event.stopPropagation();
+    cancelSession();
+  });
+
+  orbShell.addEventListener('mouseleave', () => {
+    if (state === 'idle' && !coarsePointer) orbShell.classList.remove('mode-visible');
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && state !== 'idle') {
+      cancelSession();
+      orbMain.focus();
+    }
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && state === 'running') pause();
+  });
+
+  syncPageTheme();
+  applyAmbientPalette();
+  setInterval(applyAmbientPalette, 60000);
+
+  const handleSchemeChange = () => {
+    if (themeOverride !== 'light' && themeOverride !== 'dark') {
+      syncPageTheme();
+      applyAmbientPalette();
+    }
+  };
+
+  if (typeof darkScheme.addEventListener === 'function') {
+    darkScheme.addEventListener('change', handleSchemeChange);
+  } else if (typeof darkScheme.addListener === 'function') {
+    darkScheme.addListener(handleSchemeChange);
+  }
+
+  window.addEventListener('resize', () => requestAnimationFrame(fitPatternLine));
+
+  renderIdle(false);
+})();
+</script>
+
+</body>
+</html>
